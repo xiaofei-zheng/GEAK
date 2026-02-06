@@ -1,7 +1,7 @@
-I use `rocPRIM_device_binary_search/benchmark/benchmark_device_binary_search.cpp` to test `rocPRIM_device_binary_search/rocprim/include/rocprim/device/device_binary_search.hpp` performance. But the performance is too bad (low bandwidth).
+I use `benchmark/benchmark_device_binary_search.cpp` to test `rocprim/include/rocprim/device/device_binary_search.hpp` performance. But the performance is too bad (low bandwidth).
 
-1. You must find the all files related to `rocPRIM_device_binary_search/rocprim/include/rocprim/device/device_binary_search.hpp`. And review and edit it.
-2. You MUST edit all files related to `rocPRIM_device_binary_search/rocprim/include/rocprim/device/device_binary_search.hpp`.
+1. You must find the all files related to `rocprim/include/rocprim/device/device_binary_search.hpp`. And review and edit it.
+2. You MUST edit all files related to `rocprim/include/rocprim/device/device_binary_search.hpp`.
 3. The files in `benchmark` is NOT allowed to be edited.
 4. The files in `test` is NOT allowed to be edited.
 5. The file `test_benchmark.py` is forbidden to be edited.
@@ -13,4 +13,4 @@ I use `rocPRIM_device_binary_search/benchmark/benchmark_device_binary_search.cpp
 
 ## Test Perf
 1. Baseline: Before changing any code, you should run baseline numbers.
-2. Test performance: run `python /lvm-data/data/yueliu14/clean_miniswe/test_scripts/test_benchmark.py benchmark_device_binary_search /lvm-data/data/yueliu14/clean_miniswe/rocPRIM_device_binary_search`
+2. Test performance: run `python /tmp/geak/geak_v3/test_scripts/test_benchmark.py benchmark_device_binary_search $(pwd)`

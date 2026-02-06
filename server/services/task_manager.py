@@ -319,6 +319,12 @@ OUTPUT_DIR="{output_dir}"
 # Change to repo directory for execution
 cd "$TASK_DIR/input/repo"
 
+# Set REPO_DIR environment variable for use in prompts
+export REPO_DIR="$TASK_DIR/input/repo"
+
+# Copy test scripts from GEAK to repo directory (for use in prompts)
+cp -r /tmp/geak/geak_v3/test_scripts/* . 2>/dev/null || true
+
 # Run optimization from repo directory
 mini -c "$TASK_DIR/config.yaml" -t "$TASK_DIR/prompt.md" --yolo > "$OUTPUT_DIR/execution.log" 2>&1
 
