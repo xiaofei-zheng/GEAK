@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "geak": {
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY_HERE"
+      }
+    },
+    "geak-agent": {
+      "url": "https://project1.tw325.primus-safe.amd.com/project1/project1-dev/geak-agent-d24fj/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY_HERE"
+      }
+    },
+  }
+}
