@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     default_cpu: int = Field(default=4, description="Default CPU cores")
     default_memory: str = Field(default="16Gi", description="Default memory")
     
+    # Langfuse Configuration (Optional - for LLM call tracing)
+    langfuse_enabled: bool = Field(default=False, description="Enable Langfuse tracing")
+    langfuse_public_key: str | None = Field(default=None, description="Langfuse public key")
+    langfuse_secret_key: str | None = Field(default=None, description="Langfuse secret key")
+    langfuse_base_url: str = Field(
+        default="https://cloud.langfuse.com",
+        description="Langfuse server URL"
+    )
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

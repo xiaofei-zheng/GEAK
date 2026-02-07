@@ -85,8 +85,20 @@ Provide the optimized code with comments explaining the changes made.
             "MSWEA_CONFIGURED": "true",
             "TASK_ID": task_id,
         }
-        # Note: API keys are passed via config.yaml, not environment variables
-        return env_vars
+        
+        # Langfuse tracing (zero-intrusion integration via litellm callbacks)
+        if self.settings.langfuse_enabled and self.settings.langfuse_public_key:
+            env_vars.update({
+                "LITELLM_CALLBACKS": "langfuse",
+                "LANGFUSE_PUBLIC_KEY": self.settings.langfuse_public_key,
+                "LANGFUSE_SECRET_KEY": self.settings.langfuse_secret_key or "",
+                "LANGFUSE_HOST": self.settings.langfuse_base_url,
+                # Use task_id as session_id for easy tracing
+                "LANGFUSE_SESSION_ID": task_id,
+            })
+        
+        # Filter out empty values
+        return {k: v for k, v in env_vars.items() if v}
     
     async def _merge_config(self, user_config: dict | None) -> dict:
         """Merge user config with defaults.
@@ -306,6 +318,9 @@ cd geak/geak_v3
 
 # Install dependencies
 pip install -e .
+
+# Install langfuse for LLM tracing (v2.x compatible with litellm)
+pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
 
 # Set up task
 export MSWEA_CONFIGURED=true
