@@ -36,6 +36,30 @@ class LitellmModel:
         self.n_calls = 0
         if self.config.litellm_model_registry and Path(self.config.litellm_model_registry).is_file():
             litellm.utils.register_model(json.loads(Path(self.config.litellm_model_registry).read_text()))
+        
+        # Initialize Langfuse callback if environment variables are set
+        self._setup_langfuse_callback()
+    
+    def _setup_langfuse_callback(self):
+        """Set up Langfuse callback for LLM tracing if configured via environment variables."""
+        callbacks_env = os.getenv("LITELLM_CALLBACKS", "")
+        if "langfuse" in callbacks_env.lower():
+            try:
+                # Check if langfuse is installed and configured
+                public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+                secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+                
+                if public_key and secret_key:
+                    # Set litellm callbacks
+                    if "langfuse" not in litellm.success_callback:
+                        litellm.success_callback.append("langfuse")
+                    if "langfuse" not in litellm.failure_callback:
+                        litellm.failure_callback.append("langfuse")
+                    logger.info("Langfuse callback enabled for LLM tracing")
+                else:
+                    logger.warning("LITELLM_CALLBACKS contains 'langfuse' but LANGFUSE_PUBLIC_KEY/SECRET_KEY not set")
+            except Exception as e:
+                logger.warning(f"Failed to set up Langfuse callback: {e}")
 
     @retry(
         stop=stop_after_attempt(int(os.getenv("MSWEA_MODEL_RETRY_STOP_AFTER_ATTEMPT", "10"))),
