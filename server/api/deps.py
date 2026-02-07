@@ -8,17 +8,31 @@ from server.services.auth import AuthService
 from server.services.task_manager import TaskManager
 
 # Security scheme
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    token: str | None = None,
 ) -> dict:
     """Get current authenticated user.
     
     Validates the API key against SaFE platform and returns user info.
+    Supports both Authorization header and token query parameter.
     """
-    api_key = credentials.credentials
+    # Get API key from header or query parameter
+    api_key = None
+    if credentials:
+        api_key = credentials.credentials
+    elif token:
+        api_key = token
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+        )
+    
     auth = AuthService(api_key)
     user_info = await auth.get_user_info()
     # Add api_key to user_info for downstream use

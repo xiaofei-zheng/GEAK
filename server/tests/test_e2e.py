@@ -112,8 +112,6 @@ def test_silu_case():
         outputs = response.json()
         print(f"   ✅ Output path: {outputs['output_path']}")
         print(f"   Files: {len(outputs['files'])} file(s)")
-        if outputs.get('sftp_command'):
-            print(f"   SFTP: {outputs['sftp_command']}")
         
         # 4. Verify input file was saved
         print("\n4. Verifying input file...")

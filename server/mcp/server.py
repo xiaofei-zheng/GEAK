@@ -249,7 +249,7 @@ def create_mcp_server(api_key: str | None = None) -> Server:
             ),
             Tool(
                 name="geak_download_file",
-                description="Download a specific output file from a task",
+                description="Download a file from task outputs. Returns download URL. For small text files, also includes content directly.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -263,7 +263,7 @@ def create_mcp_server(api_key: str | None = None) -> Server:
                         },
                         "file_path": {
                             "type": "string",
-                            "description": "Path to the file within task outputs (e.g., execution.log, silu.hip)"
+                            "description": "Path to the file within task outputs (e.g., execution.log, modified_repo.tar.gz)"
                         }
                     },
                     "required": ["task_id", "file_path"]

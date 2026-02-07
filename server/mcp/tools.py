@@ -24,7 +24,10 @@ class GEAKTools:
         """
         self.default_api_key = default_api_key
         settings = get_settings()
+        # Internal base URL for API calls
         self.base_url = base_url or f"http://{settings.host}:{settings.port}"
+        # External base URL for download links (used in responses to users)
+        self.external_base_url = (settings.external_base_url or f"http://localhost:{settings.port}").rstrip("/")
     
     def _get_headers(self, api_key: str) -> dict[str, str]:
         """Get request headers with authentication."""
@@ -199,45 +202,72 @@ class GEAKTools:
         task_id: str,
         file_path: str,
     ) -> dict[str, Any]:
-        """Download a file from task outputs.
+        """Get download information for a file from task outputs.
         
-        Returns file content as text or base64 for binary files.
+        Args:
+            api_key: API key for authentication.
+            task_id: Task ID.
+            file_path: Path to file within task outputs (e.g., execution.log, modified_repo.tar.gz).
+        
+        Returns:
+            Download URL and file information. For text files under 1MB, also includes content.
         """
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=60.0) as client:
-            response = await client.get(
-                f"/api/v1/tasks/{task_id}/download",
-                headers=self._get_headers(api_key),
-                params={"path": file_path},
-            )
-            
-            if response.status_code >= 400:
-                try:
-                    error = response.json()
-                except Exception:
-                    error = {"detail": response.text}
-                return {
-                    "error": error.get("detail", str(error)),
-                    "status_code": response.status_code
-                }
-            
-            # Try to decode as text
-            content_type = response.headers.get("content-type", "")
-            if "text" in content_type or file_path.endswith((".hip", ".log", ".txt", ".md", ".yaml", ".json")):
-                try:
-                    return {
-                        "file_path": file_path,
-                        "content_type": "text",
-                        "content": response.text,
-                        "size": len(response.content),
-                    }
-                except Exception:
-                    pass
-            
-            # Return as base64 for binary files
-            import base64
-            return {
-                "file_path": file_path,
-                "content_type": "binary",
-                "content_base64": base64.b64encode(response.content).decode(),
-                "size": len(response.content),
-            }
+        # First, check file exists via outputs API
+        outputs = await self.get_outputs(api_key, task_id)
+        if "error" in outputs:
+            return outputs
+        
+        # Find the file in outputs
+        file_info = None
+        for f in outputs.get("files", []):
+            if f.get("path") == file_path:
+                file_info = f
+                break
+        
+        if not file_info:
+            return {"error": f"File '{file_path}' not found in task outputs"}
+        
+        file_size = file_info.get("size", 0)
+        
+        # Determine if binary
+        binary_extensions = (".tar.gz", ".zip", ".gz", ".tar", ".bin", ".so", ".a", ".o", ".exe", ".dll", ".png", ".jpg", ".jpeg", ".gif", ".pdf")
+        is_binary = file_path.endswith(binary_extensions)
+        
+        # Generate download URL with token for direct access
+        download_url = f"{self.external_base_url}/api/v1/tasks/{task_id}/download?path={file_path}&token={api_key}"
+        
+        result = {
+            "file_path": file_path,
+            "size": file_size,
+            "download_url": download_url,
+        }
+        
+        # For small text files, also include content directly
+        TEXT_SIZE_LIMIT = 1 * 1024 * 1024  # 1MB
+        
+        if not is_binary and file_size <= TEXT_SIZE_LIMIT:
+            try:
+                async with httpx.AsyncClient(base_url=self.base_url, timeout=60.0) as client:
+                    response = await client.get(
+                        f"/api/v1/tasks/{task_id}/download",
+                        headers=self._get_headers(api_key),
+                        params={"path": file_path},
+                    )
+                    
+                    if response.status_code < 400:
+                        content = response.content
+                        try:
+                            text_content = content.decode("utf-8")
+                        except UnicodeDecodeError:
+                            text_content = content.decode("utf-8", errors="replace")
+                        
+                        result["content"] = text_content
+                        result["message"] = f"Text file ({file_size:,} bytes). Content included below."
+                        return result
+            except Exception as e:
+                logger.warning(f"Failed to fetch text content: {e}")
+        
+        # For binary or large files, just return the download URL
+        result["message"] = f"Download URL for {file_path} ({file_size:,} bytes). Click the link to download directly."
+        
+        return result

@@ -53,9 +53,6 @@ class TaskResponse(BaseModel):
     error_message: str | None = Field(default=None, description="Error message if failed")
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Last update timestamp")
-    
-    # Computed fields for convenience
-    sftp_path: str | None = Field(default=None, description="SFTP path for direct access")
 
 
 class TaskListResponse(BaseModel):

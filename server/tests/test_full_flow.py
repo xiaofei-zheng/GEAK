@@ -389,9 +389,6 @@ def run_full_flow_test(skip_submit: bool = False):
             print_result(True, f"Total files: {len(outputs['files'])}")
             for f in outputs['files']:
                 print(f"      - {f['path']} ({f['size']} bytes)")
-            
-            if outputs.get('sftp_command'):
-                print(f"\n   SFTP: {outputs['sftp_command']}")
         
         # =================================================================
         # Step 7: Download Files

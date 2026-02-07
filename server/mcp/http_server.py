@@ -221,12 +221,12 @@ def create_mcp_http_app() -> FastAPI:
             },
             {
                 "name": "geak_download_file",
-                "description": "Download a specific output file from a task",
+                "description": "Download a file from task outputs. Returns download URL. For small text files, also includes content directly.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "task_id": {"type": "string", "description": "Task ID"},
-                        "file_path": {"type": "string", "description": "Path to file (e.g., execution.log)"}
+                        "file_path": {"type": "string", "description": "Path to file (e.g., execution.log, modified_repo.tar.gz)"}
                     },
                     "required": ["task_id", "file_path"]
                 }

@@ -146,7 +146,7 @@ async def get_task_outputs(
 ):
     """Get list of output files for a task.
     
-    Returns file information and SFTP/SCP commands for direct access.
+    Returns file information for all output files.
     """
     try:
         outputs = await task_manager.get_outputs(task_id)

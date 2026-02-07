@@ -518,9 +518,5 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
     
     def _enrich_task(self, task: dict) -> dict:
         """Add computed fields to task."""
-        if self.settings.sftp_host and task.get("output_path"):
-            task["sftp_path"] = (
-                f"{self.settings.sftp_user}@{self.settings.sftp_host}:"
-                f"{task['output_path']}"
-            )
+        # Task data is returned as-is, no additional enrichment needed
         return task

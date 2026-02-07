@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     # Server
     host: str = Field(default="0.0.0.0", description="Server host")
     port: int = Field(default=8000, description="Server port")
+    external_base_url: str | None = Field(
+        default=None,
+        description="External base URL for download links (e.g., https://geak.example.com)"
+    )
     
     # SaFE Platform
     safe_api_base: str = Field(..., description="SaFE platform API base URL")
@@ -53,11 +57,6 @@ class Settings(BaseSettings):
     default_timeout: int = Field(default=3600, description="Default timeout in seconds")
     default_cpu: int = Field(default=4, description="Default CPU cores")
     default_memory: str = Field(default="16Gi", description="Default memory")
-    
-    # SFTP Access (Optional)
-    sftp_host: str | None = Field(default=None, description="SFTP host")
-    sftp_port: int = Field(default=22, description="SFTP port")
-    sftp_user: str | None = Field(default=None, description="SFTP username")
     
     class Config:
         env_file = ".env"
