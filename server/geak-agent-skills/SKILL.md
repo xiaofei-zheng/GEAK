@@ -1,5 +1,5 @@
 ---
-name: geak-optimize
+name: geak-agent-skills
 description: Optimize AMD GPU HIP kernels using the GEAK (GPU Enhancement Agent for Kernels) REST API. Provides a CLI tool to configure models, submit HIP kernel files or git repos for optimization, poll task status, and download results. Use when the user mentions GEAK, HIP kernel optimization, GPU kernel performance, or wants to optimize .hip files for AMD GPUs.
 ---
 
