@@ -407,8 +407,8 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
                 task = await TaskDB.update(task["id"], status=new_status)
         
         except Exception:
-            # Fallback to log-based detection if SaFE query fails
-            task = await self._check_log_for_completion(task)
+            # SaFE query failed (workload deleted/gone), check log then default to failed
+            task = await self._check_log_for_completion(task, default_failed=True)
         
         return task
     
@@ -430,14 +430,21 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
         elif status in ("pending", "running"):
             return "running"
         
-        return None
+        return "failed"  # Unknown status, treat as failed
     
-    async def _check_log_for_completion(self, task: dict) -> dict:
-        """Fallback: Check execution log for completion markers."""
+    async def _check_log_for_completion(self, task: dict, default_failed: bool = False) -> dict:
+        """Fallback: Check execution log for completion markers.
+        
+        Args:
+            task: Task dict.
+            default_failed: If True and no completion marker found, mark as failed.
+        """
         output_dir = self._get_output_dir(task["id"])
         log_path = output_dir / "execution.log"
         
         if not log_path.exists():
+            if default_failed:
+                task = await TaskDB.update(task["id"], status="failed", error_message="Workload not found on SaFE platform")
             return task
         
         try:
@@ -445,8 +452,11 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
             
             if "completed successfully" in content:
                 task = await TaskDB.update(task["id"], status="completed")
+            elif default_failed:
+                task = await TaskDB.update(task["id"], status="failed", error_message="Workload finished but no completion marker in log")
         except Exception:
-            pass
+            if default_failed:
+                task = await TaskDB.update(task["id"], status="failed", error_message="Workload gone, log unreadable")
         
         return task
     
