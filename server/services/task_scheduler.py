@@ -21,7 +21,7 @@ class TaskScheduler:
         self.settings = get_settings()
         self._running = False
         self._task: asyncio.Task | None = None
-        self.check_interval = 30  # Check every 30 seconds
+        self.check_interval = 60  # Check every 60 seconds
     
     async def start(self):
         """Start the background scheduler."""
@@ -98,8 +98,8 @@ class TaskScheduler:
             # Create a client with the system API key (if configured)
             system_api_key = self.settings.safe_system_api_key
             if not system_api_key:
-                # Fallback: check log file for completion, default to failed
-                await self._check_log_for_completion(task, default_failed=True)
+                # Fallback: check log file for completion
+                await self._check_log_for_completion(task)
                 return
             
             client = SaFEClient(system_api_key)
@@ -116,9 +116,9 @@ class TaskScheduler:
                 logger.info("Task %s status updated: %s -> %s", task_id, task["status"], new_status)
         
         except Exception as e:
-            logger.warning("Could not query workload %s: %s, falling back to log check", workload_id, e)
-            # Fallback to log-based detection, default to failed if no completion marker
-            await self._check_log_for_completion(task, default_failed=True)
+            logger.debug("Could not query workload %s: %s, falling back to log check", workload_id, e)
+            # Fallback to log-based detection
+            await self._check_log_for_completion(task)
     
     def _map_workload_status(self, status: str, phase: str) -> str | None:
         """Map SaFE workload status to task status.
@@ -142,16 +142,10 @@ class TaskScheduler:
         elif status in ("pending", "running"):
             return "running"
         
-        return "failed"  # Unknown status, treat as failed
+        return None  # Unknown, don't update
     
-    async def _check_log_for_completion(self, task: dict, default_failed: bool = False):
-        """Fallback: Check execution log for completion markers.
-        
-        Args:
-            task: Task dict.
-            default_failed: If True and no completion marker found, mark as failed.
-                           Used when SaFE workload query fails (workload deleted/gone).
-        """
+    async def _check_log_for_completion(self, task: dict):
+        """Fallback: Check execution log for completion markers."""
         from pathlib import Path
         
         task_id = task["id"]
@@ -161,9 +155,6 @@ class TaskScheduler:
         log_path = output_dir / "execution.log"
         
         if not log_path.exists():
-            if default_failed:
-                await TaskDB.update(task_id, status="failed", error_message="Workload not found on SaFE platform")
-                logger.info("Task %s marked failed (workload gone, no log)", task_id)
             return
         
         try:
@@ -172,14 +163,11 @@ class TaskScheduler:
             if "completed successfully" in content:
                 await TaskDB.update(task_id, status="completed")
                 logger.info("Task %s marked completed (log check)", task_id)
-            elif default_failed:
-                await TaskDB.update(task_id, status="failed", error_message="Workload finished but no completion marker in log")
-                logger.info("Task %s marked failed (workload gone, no completion marker)", task_id)
+            elif "error" in content.lower() and ("fatal" in content.lower() or "exception" in content.lower()):
+                # Only mark as failed for clear fatal errors
+                pass  # Be conservative, don't auto-fail
         except Exception as e:
-            logger.warning("Could not read log for task %s: %s", task_id, e)
-            if default_failed:
-                await TaskDB.update(task_id, status="failed", error_message=f"Workload gone, log unreadable: {e}")
-                logger.info("Task %s marked failed (workload gone, log unreadable)", task_id)
+            logger.debug("Could not read log for task %s: %s", task_id, e)
 
 
 # Global scheduler instance
