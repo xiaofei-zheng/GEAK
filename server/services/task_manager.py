@@ -320,20 +320,6 @@ set -e
 # Export environment variables (SSL, Langfuse tracing, etc.)
 {env_export_lines}
 
-# Patch httpx to skip SSL verification globally (self-signed certs)
-# sitecustomize.py runs too early (before httpx is installed), so use
-# a .pth file that imports a patch module after site-packages are loaded
-SITE_DIR=$(python3 -c "import site; print(site.getsitepackages()[0])")
-cat > "$SITE_DIR/_ssl_verify_patch.py" << 'SSLPATCH'
-import httpx
-_httpx_orig_init = httpx.Client.__init__
-def _httpx_patched_init(self, *a, **kw):
-    kw["verify"] = False
-    _httpx_orig_init(self, *a, **kw)
-httpx.Client.__init__ = _httpx_patched_init
-SSLPATCH
-echo "import _ssl_verify_patch" > "$SITE_DIR/zzz_ssl_patch.pth"
-
 # Clone GEAK repository
 cd /tmp
 git clone -b {settings.geak_branch} {settings.geak_repo_url} geak
@@ -344,6 +330,19 @@ pip install -e .
 
 # Install langfuse for LLM tracing (v2.x compatible with litellm)
 pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
+
+# Patch httpx to skip SSL verification globally (self-signed certs)
+# Must be after pip install so httpx is available when .pth is loaded
+SITE_DIR=$(python3 -c "import site; print(site.getsitepackages()[0])")
+cat > "$SITE_DIR/_ssl_verify_patch.py" << 'SSLPATCH'
+import httpx
+_httpx_orig_init = httpx.Client.__init__
+def _httpx_patched_init(self, *a, **kw):
+    kw["verify"] = False
+    _httpx_orig_init(self, *a, **kw)
+httpx.Client.__init__ = _httpx_patched_init
+SSLPATCH
+echo "import _ssl_verify_patch" > "$SITE_DIR/zzz_ssl_patch.pth"
 
 # Set up task
 TASK_DIR="{task_dir}"
