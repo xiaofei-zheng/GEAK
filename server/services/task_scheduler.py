@@ -5,7 +5,9 @@ Periodically checks running tasks and updates their status.
 
 import asyncio
 import logging
-from datetime import datetime
+import shutil
+from datetime import datetime, timedelta
+from pathlib import Path
 
 from server.database import TaskDB
 from server.services.safe_client import SaFEClient
@@ -22,6 +24,9 @@ class TaskScheduler:
         self._running = False
         self._task: asyncio.Task | None = None
         self.check_interval = 60  # Check every 60 seconds
+        self.cleanup_interval = 3600  # Cleanup every 1 hour
+        self.task_retention_days = 7  # Keep tasks for 7 days
+        self._loops_since_cleanup = 0
     
     async def start(self):
         """Start the background scheduler."""
@@ -45,11 +50,21 @@ class TaskScheduler:
     
     async def _run_loop(self):
         """Main scheduler loop."""
+        cleanup_every_n = max(1, self.cleanup_interval // self.check_interval)
+        
         while self._running:
             try:
                 await self._check_running_tasks()
             except Exception as e:
                 logger.exception("Error in task scheduler: %s", e)
+            
+            self._loops_since_cleanup += 1
+            if self._loops_since_cleanup >= cleanup_every_n:
+                self._loops_since_cleanup = 0
+                try:
+                    await self._cleanup_expired_tasks()
+                except Exception as e:
+                    logger.exception("Error in task cleanup: %s", e)
             
             await asyncio.sleep(self.check_interval)
     
@@ -146,8 +161,6 @@ class TaskScheduler:
     
     async def _check_log_for_completion(self, task: dict):
         """Fallback: Check execution log for completion markers."""
-        from pathlib import Path
-        
         task_id = task["id"]
         user_id = task.get("user_id", "")
         
@@ -164,10 +177,38 @@ class TaskScheduler:
                 await TaskDB.update(task_id, status="completed")
                 logger.info("Task %s marked completed (log check)", task_id)
             elif "error" in content.lower() and ("fatal" in content.lower() or "exception" in content.lower()):
-                # Only mark as failed for clear fatal errors
                 pass  # Be conservative, don't auto-fail
         except Exception as e:
             logger.debug("Could not read log for task %s: %s", task_id, e)
+    
+    async def _cleanup_expired_tasks(self):
+        """Delete tasks and their directories older than retention period."""
+        cutoff = datetime.utcnow() - timedelta(days=self.task_retention_days)
+        expired_tasks = await TaskDB.list_expired(cutoff)
+        
+        if not expired_tasks:
+            logger.debug("No expired tasks to clean up")
+            return
+        
+        logger.info("Cleaning up %d expired tasks (before %s)", len(expired_tasks), cutoff.isoformat())
+        deleted_count = 0
+        
+        for task in expired_tasks:
+            task_id = task["id"]
+            user_id = task.get("user_id", "")
+            task_dir = Path(self.settings.nfs_base_path) / "tasks" / user_id / task_id
+            
+            try:
+                if task_dir.exists():
+                    shutil.rmtree(task_dir)
+                    deleted_count += 1
+                    logger.info("Deleted task directory: %s (status=%s)", task_dir, task.get("status"))
+                else:
+                    logger.debug("Task directory not found, skipping: %s", task_dir)
+            except Exception as e:
+                logger.error("Failed to clean up task %s: %s", task_id, e)
+        
+        logger.info("Cleanup finished: %d/%d tasks deleted", deleted_count, len(expired_tasks))
 
 
 # Global scheduler instance

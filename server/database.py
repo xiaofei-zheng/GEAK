@@ -175,6 +175,23 @@ class TaskDB:
         return await TaskDB.get(task_id)
     
     @staticmethod
+    async def list_expired(before: datetime) -> list[dict]:
+        """List all tasks older than a given time, regardless of status."""
+        db_path = get_db_path()
+        async with aiosqlite.connect(db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT * FROM tasks
+                WHERE updated_at < ?
+                ORDER BY updated_at ASC
+                """,
+                (before.isoformat(),),
+            )
+            rows = await cursor.fetchall()
+            return [TaskDB._row_to_dict(row) for row in rows]
+
+    @staticmethod
     async def delete(task_id: str) -> bool:
         """Delete a task."""
         db_path = get_db_path()

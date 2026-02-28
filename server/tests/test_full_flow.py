@@ -138,7 +138,11 @@ def test_submit_task(client: httpx.Client, task_id: str) -> dict | None:
 # =============================================================================
 
 def monitor_task_execution(task_id: str, user_id: str, max_wait: int = 300, interval: int = 10) -> bool:
-    """Monitor task execution until completion or timeout."""
+    """Monitor task execution until completion or timeout.
+    
+    Uses both log file monitoring and API status polling to detect
+    early failures (e.g. workload crashes before execution.log is created).
+    """
     nfs_base = os.getenv("NFS_BASE_PATH", "/shared_nfs/geak")
     output_dir = Path(f"{nfs_base}/tasks/{user_id}/{task_id}/output")
     log_path = output_dir / "execution.log"
@@ -152,17 +156,14 @@ def monitor_task_execution(task_id: str, user_id: str, max_wait: int = 300, inte
         if log_path.exists():
             content = log_path.read_text()
             
-            # Check if completed
             if "completed successfully" in content:
                 print(f"   ✅ Task completed after {elapsed} seconds")
                 return True
             
-            # Check if failed
             if "FAILED" in content or "Error" in content.split('\n')[-5:]:
                 print(f"   ⚠️ Task may have failed after {elapsed} seconds")
-                return True  # Still return True to check outputs
+                return True
             
-            # Show progress
             import re
             steps = re.findall(r'step (\d+)', content.lower())
             if steps:
@@ -171,8 +172,24 @@ def monitor_task_execution(task_id: str, user_id: str, max_wait: int = 300, inte
                     last_step = current_step
                     print(f"   [{elapsed}s] Executing step {current_step}...")
         else:
-            if elapsed % 30 == 0:  # Only print every 30 seconds
+            if elapsed % 30 == 0:
                 print(f"   [{elapsed}s] Waiting for execution to start...")
+            
+            # Poll API status when log doesn't exist yet (detect early failures)
+            if elapsed > 0 and elapsed % 30 == 0:
+                try:
+                    with httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=10.0, verify=VERIFY_SSL) as client:
+                        resp = client.get(f"/api/v1/tasks/{task_id}")
+                        if resp.status_code == 200:
+                            status = resp.json().get("status", "")
+                            if status == "failed":
+                                print(f"   ❌ Task failed after {elapsed} seconds (workload error)")
+                                return False
+                            if status == "completed":
+                                print(f"   ✅ Task completed after {elapsed} seconds (API)")
+                                return True
+                except Exception:
+                    pass
         
         time.sleep(interval)
     
