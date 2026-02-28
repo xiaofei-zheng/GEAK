@@ -24,10 +24,11 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
 # 测试配置
-BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8000").rstrip("/")
 API_KEY = os.getenv("TEST_API_KEY")
-API_BASE = os.getenv("TEST_API_BASE", "http://litellm-service.primus-safe.svc.cluster.local:4000/v1")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+API_BASE = os.getenv("TEST_LLM_BASE", "http://litellm-service.primus-safe.svc.cluster.local:4000/v1")
+LLM_API_KEY = os.getenv("TEST_LLM_KEY", "")
+VERIFY_SSL = False
 
 # 读取测试文件
 GEAK_V3_DIR = Path(__file__).parent.parent.parent / "geak_v3"
@@ -138,7 +139,8 @@ def test_submit_task(client: httpx.Client, task_id: str) -> dict | None:
 
 def monitor_task_execution(task_id: str, user_id: str, max_wait: int = 300, interval: int = 10) -> bool:
     """Monitor task execution until completion or timeout."""
-    output_dir = Path(f"/wekafs/geak/tasks/{user_id}/{task_id}/output")
+    nfs_base = os.getenv("NFS_BASE_PATH", "/shared_nfs/geak")
+    output_dir = Path(f"{nfs_base}/tasks/{user_id}/{task_id}/output")
     log_path = output_dir / "execution.log"
     
     start_time = time.time()
@@ -221,7 +223,7 @@ def run_full_flow_test(skip_submit: bool = False):
         print("\n❌ TEST_API_KEY not set in .env")
         return False
     
-    with httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=120.0) as client:
+    with httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=120.0, verify=VERIFY_SSL) as client:
         
         # =================================================================
         # Step 1: User Model Configuration
@@ -385,9 +387,10 @@ def run_full_flow_test(skip_submit: bool = False):
         
         outputs = test_get_outputs(client, task_id)
         if outputs:
-            print_result(True, f"Output path: {outputs['output_path']}")
-            print_result(True, f"Total files: {len(outputs['files'])}")
-            for f in outputs['files']:
+            print_result(True, f"Task ID: {outputs.get('task_id', task_id)}")
+            files = outputs.get('files', [])
+            print_result(True, f"Total files: {len(files)}")
+            for f in files:
                 print(f"      - {f['path']} ({f['size']} bytes)")
         
         # =================================================================
@@ -449,7 +452,7 @@ def run_config_only_test():
         print("\n❌ TEST_API_KEY not set in .env")
         return False
     
-    with httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=30.0) as client:
+    with httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=30.0, verify=VERIFY_SSL) as client:
         
         # Test 1: Get (should be 404 or existing)
         print("\n1. GET /api/v1/config/model")

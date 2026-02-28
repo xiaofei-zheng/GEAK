@@ -16,8 +16,9 @@ env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
 # 测试配置
-BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("TEST_BASE_URL", "http://localhost:8000").rstrip("/")
 API_KEY = os.getenv("TEST_API_KEY")
+VERIFY_SSL = False
 
 # 测试数据 - SiLU kernel
 SILU_CODE = '''// Copyright(C) [2026] Advanced Micro Devices, Inc. All rights reserved.
@@ -71,7 +72,7 @@ class TestHealthCheck:
     
     def test_health(self):
         """Test health check endpoint."""
-        with httpx.Client() as client:
+        with httpx.Client(verify=VERIFY_SSL) as client:
             response = client.get(f"{BASE_URL}/health")
             assert response.status_code == 200
             data = response.json()
@@ -79,7 +80,7 @@ class TestHealthCheck:
     
     def test_root(self):
         """Test root endpoint."""
-        with httpx.Client() as client:
+        with httpx.Client(verify=VERIFY_SSL) as client:
             response = client.get(f"{BASE_URL}/")
             assert response.status_code == 200
             data = response.json()
@@ -91,13 +92,13 @@ class TestAuthentication:
     
     def test_no_auth(self):
         """Test request without authentication."""
-        with httpx.Client() as client:
+        with httpx.Client(verify=VERIFY_SSL) as client:
             response = client.get(f"{BASE_URL}/api/v1/tasks")
             assert response.status_code in (401, 403)
     
     def test_invalid_auth(self):
         """Test request with invalid API key."""
-        with httpx.Client() as client:
+        with httpx.Client(verify=VERIFY_SSL) as client:
             headers = {"Authorization": "Bearer invalid-key"}
             response = client.get(f"{BASE_URL}/api/v1/tasks", headers=headers)
             assert response.status_code in (401, 403, 502, 503)
@@ -109,7 +110,7 @@ class TestTaskAPI:
     @pytest.fixture
     def client(self):
         """Create HTTP client."""
-        return httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=30.0)
+        return httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=30.0, verify=VERIFY_SSL)
     
     def test_create_task_file(self, client):
         """Test creating a task with file input."""
@@ -127,8 +128,8 @@ class TestTaskAPI:
         response = client.post("/api/v1/tasks", json=payload)
         
         # 如果认证失败，跳过测试
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         assert response.status_code == 201, f"Failed: {response.text}"
         data = response.json()
@@ -153,8 +154,8 @@ class TestTaskAPI:
         
         response = client.post("/api/v1/tasks", json=payload)
         
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         # 可能会因为克隆仓库超时，这里只检查请求格式正确
         assert response.status_code in (201, 500), f"Unexpected: {response.text}"
@@ -168,8 +169,8 @@ class TestTaskAPI:
         
         response = client.post("/api/v1/tasks", json=payload)
         
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         assert response.status_code == 400
     
@@ -177,8 +178,8 @@ class TestTaskAPI:
         """Test listing tasks."""
         response = client.get("/api/v1/tasks")
         
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         assert response.status_code == 200
         data = response.json()
@@ -191,8 +192,8 @@ class TestTaskAPI:
         """Test listing tasks with status filter."""
         response = client.get("/api/v1/tasks", params={"status": "pending"})
         
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         assert response.status_code == 200
     
@@ -200,8 +201,8 @@ class TestTaskAPI:
         """Test getting non-existent task."""
         response = client.get("/api/v1/tasks/non-existent-id")
         
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         assert response.status_code == 404
 
@@ -212,7 +213,7 @@ class TestTaskWorkflow:
     @pytest.fixture
     def client(self):
         """Create HTTP client."""
-        return httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=60.0)
+        return httpx.Client(base_url=BASE_URL, headers=get_headers(), timeout=60.0, verify=VERIFY_SSL)
     
     def test_full_workflow(self, client):
         """Test complete workflow: create -> get -> list."""
@@ -240,8 +241,8 @@ class TestTaskWorkflow:
         
         response = client.post("/api/v1/tasks", json=payload)
         
-        if response.status_code in (401, 403, 502, 503):
-            pytest.skip("Authentication failed - check API_KEY")
+        if response.status_code in (401, 403):
+            pytest.skip("Authentication failed - check TEST_API_KEY")
         
         assert response.status_code == 201
         task = response.json()
@@ -280,7 +281,7 @@ def run_quick_test():
     # Health check
     print("\n1. Testing health endpoint...")
     try:
-        with httpx.Client() as client:
+        with httpx.Client(verify=VERIFY_SSL) as client:
             response = client.get(f"{BASE_URL}/health", timeout=5.0)
             if response.status_code == 200:
                 print("   ✅ Health check passed")
@@ -306,7 +307,7 @@ def run_quick_test():
     }
     
     try:
-        with httpx.Client() as client:
+        with httpx.Client(verify=VERIFY_SSL) as client:
             response = client.post(
                 f"{BASE_URL}/api/v1/tasks",
                 json=payload,

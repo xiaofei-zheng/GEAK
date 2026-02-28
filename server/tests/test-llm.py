@@ -3,6 +3,7 @@
 """
 import os
 from pathlib import Path
+import httpx
 import openai
 from dotenv import load_dotenv
 
@@ -10,17 +11,13 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(env_path)
 
-# Gateway 地址
-GATEWAY_URL = os.getenv("LLM_GATEWAY_URL", "http://litellm-service.primus-safe.svc.cluster.local:4000/v1")
-# GATEWAY_URL = "https://project1.tw325.primus-safe.amd.com/llm-gateway/v1"      # priect1
-# GATEWAY_URL = "https://tw325.primus-safe.amd.com/llm-gateway/v1"      # tw
-
-# api_key 从 .env 加载
-LLM_API_KEY = os.getenv("LLM_API_KEY")
+API_BASE = os.getenv("TEST_LLM_BASE", "http://litellm-service.primus-safe.svc.cluster.local:4000/v1")
+API_KEY = os.getenv("TEST_LLM_KEY")
 
 client = openai.OpenAI(
-    base_url=f"{GATEWAY_URL}",
-    api_key=LLM_API_KEY
+    base_url=API_BASE,
+    api_key=API_KEY,
+    http_client=httpx.Client(verify=False),
 )
 
 

@@ -84,6 +84,8 @@ Provide the optimized code with comments explaining the changes made.
         env_vars = {
             "MSWEA_CONFIGURED": "true",
             "TASK_ID": task_id,
+            "SSL_VERIFY": "false",
+            "CURL_CA_BUNDLE": "",
         }
         
         # Langfuse tracing (zero-intrusion integration via litellm callbacks)
@@ -97,8 +99,8 @@ Provide the optimized code with comments explaining the changes made.
                 "LANGFUSE_SESSION_ID": task_id,
             })
         
-        # Filter out empty values
-        return {k: v for k, v in env_vars.items() if v}
+        # Filter out None values (empty strings are intentional, e.g. CURL_CA_BUNDLE)
+        return {k: v for k, v in env_vars.items() if v is not None}
     
     async def _merge_config(self, user_config: dict | None) -> dict:
         """Merge user config with defaults.
@@ -307,9 +309,28 @@ Provide the optimized code with comments explaining the changes made.
         """
         settings = self.settings
         
+        # Build env export block from _build_env_vars
+        env_vars = self._build_env_vars(task_id)
+        env_export_lines = "\n".join(f'export {k}="{v}"' for k, v in env_vars.items())
+        
         # Common setup
         setup_commands = f"""#!/bin/bash
 set -e
+
+# Export environment variables (SSL, Langfuse tracing, etc.)
+{env_export_lines}
+
+# Patch httpx to skip SSL verification globally (self-signed certs)
+# Write to sitecustomize.py so it's loaded before any Python code
+SITE_DIR=$(python3 -c "import site; print(site.getsitepackages()[0])")
+cat > "$SITE_DIR/sitecustomize.py" << 'SSLPATCH'
+import httpx
+_httpx_orig_init = httpx.Client.__init__
+def _httpx_patched_init(self, *a, **kw):
+    kw["verify"] = False
+    _httpx_orig_init(self, *a, **kw)
+httpx.Client.__init__ = _httpx_patched_init
+SSLPATCH
 
 # Clone GEAK repository
 cd /tmp
@@ -323,7 +344,6 @@ pip install -e .
 pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
 
 # Set up task
-export MSWEA_CONFIGURED=true
 TASK_DIR="{task_dir}"
 OUTPUT_DIR="{output_dir}"
 """

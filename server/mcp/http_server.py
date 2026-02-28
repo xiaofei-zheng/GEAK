@@ -12,6 +12,7 @@ import uuid
 from typing import Any
 
 from fastapi import FastAPI, Request, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -50,6 +51,14 @@ def create_mcp_http_app() -> FastAPI:
         title="GEAK MCP Server",
         description="MCP (Model Context Protocol) server for GEAK optimization service",
         version="1.0.0",
+    )
+    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     
     tools = GEAKTools()
@@ -236,6 +245,31 @@ def create_mcp_http_app() -> FastAPI:
     # Session storage for SSE connections
     sessions: dict[str, asyncio.Queue] = {}
     
+    def _get_message_endpoint(request: Request, session_id: str) -> str:
+        """Build the full message endpoint URL for SSE clients.
+        
+        When behind a reverse proxy with a path prefix (e.g.
+        /control-plane/.../geak-agent-xdk2z), the SSE endpoint event must
+        return a path that includes the full prefix so that the client POSTs
+        to the correct URL.
+        
+        Priority:
+        1. EXTERNAL_BASE_URL from settings (most reliable for proxy setups)
+        2. Derive from request URL path
+        """
+        settings = get_settings()
+        if settings.external_base_url:
+            base = settings.external_base_url.rstrip("/")
+            return f"{base}/mcp/message?sessionId={session_id}"
+        
+        path = str(request.url.path)
+        for suffix in ("/sse", "/"):
+            if path.endswith(suffix):
+                path = path[: -len(suffix)]
+                break
+        base_path = path.rstrip("/")
+        return f"{base_path}/message?sessionId={session_id}"
+    
     @app.get("/")
     async def root_get(
         request: Request,
@@ -250,10 +284,11 @@ def create_mcp_http_app() -> FastAPI:
             session_id = str(uuid.uuid4())
             response_queue: asyncio.Queue = asyncio.Queue()
             sessions[session_id] = response_queue
+            message_endpoint = _get_message_endpoint(request, session_id)
             
             async def event_generator():
                 try:
-                    yield f"event: endpoint\ndata: /mcp/message?sessionId={session_id}\n\n"
+                    yield f"event: endpoint\ndata: {message_endpoint}\n\n"
                     while True:
                         try:
                             response = await asyncio.wait_for(response_queue.get(), timeout=30)
@@ -323,6 +358,7 @@ def create_mcp_http_app() -> FastAPI:
     
     @app.get("/sse")
     async def sse_endpoint(
+        request: Request,
         authorization: str = Header(None),
         x_api_key: str = Header(None, alias="X-API-Key"),
     ):
@@ -334,6 +370,7 @@ def create_mcp_http_app() -> FastAPI:
         session_id = str(uuid.uuid4())
         response_queue: asyncio.Queue = asyncio.Queue()
         sessions[session_id] = response_queue
+        message_endpoint = _get_message_endpoint(request, session_id)
         
         # Extract API key and store it
         api_key = None
@@ -345,7 +382,7 @@ def create_mcp_http_app() -> FastAPI:
         async def event_generator():
             try:
                 # Send endpoint event to tell client where to POST messages
-                yield f"event: endpoint\ndata: /mcp/message?sessionId={session_id}\n\n"
+                yield f"event: endpoint\ndata: {message_endpoint}\n\n"
                 
                 # Wait for responses and send them via SSE
                 while True:

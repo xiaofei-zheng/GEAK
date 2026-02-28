@@ -107,7 +107,7 @@ class SaFEClient:
             ],
             "images": [image],
             "entryPoints": [entry_point],
-            "priority": 100,  # High priority
+            "priority": 1, 
             "timeout": 3600,
             "maxRetry": 0,
             "ttlSecondsAfterFinished": 300,
