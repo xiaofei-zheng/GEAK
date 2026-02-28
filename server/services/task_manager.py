@@ -321,9 +321,10 @@ set -e
 {env_export_lines}
 
 # Patch httpx to skip SSL verification globally (self-signed certs)
-# Write to sitecustomize.py so it's loaded before any Python code
+# sitecustomize.py runs too early (before httpx is installed), so use
+# a .pth file that imports a patch module after site-packages are loaded
 SITE_DIR=$(python3 -c "import site; print(site.getsitepackages()[0])")
-cat > "$SITE_DIR/sitecustomize.py" << 'SSLPATCH'
+cat > "$SITE_DIR/_ssl_verify_patch.py" << 'SSLPATCH'
 import httpx
 _httpx_orig_init = httpx.Client.__init__
 def _httpx_patched_init(self, *a, **kw):
@@ -331,6 +332,7 @@ def _httpx_patched_init(self, *a, **kw):
     _httpx_orig_init(self, *a, **kw)
 httpx.Client.__init__ = _httpx_patched_init
 SSLPATCH
+echo "import _ssl_verify_patch" > "$SITE_DIR/zzz_ssl_patch.pth"
 
 # Clone GEAK repository
 cd /tmp
