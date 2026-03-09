@@ -336,12 +336,10 @@ pip install -e .
 # Install langfuse for LLM tracing (v2.x compatible with litellm)
 pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
 
-# Append custom CA certs to certifi bundle (httpx/openai use certifi, not system CA store)
-if ls /usr/local/share/ca-certificates/*.crt &>/dev/null && python3 -c "import certifi" 2>/dev/null; then
-    CERTIFI_BUNDLE=$(python3 -c "import certifi; print(certifi.where())")
-    for crt in /usr/local/share/ca-certificates/*.crt; do
-        cat "$crt" >> "$CERTIFI_BUNDLE"
-    done
+# Trust custom CA certs for Python SSL (certifi + partial chain via .pth auto-import)
+if ls /usr/local/share/ca-certificates/*.crt &>/dev/null; then
+    SITE_DIR=$(python3 -c "import site;print(site.getsitepackages()[0])")
+    cp /tmp/geak/server/ssl_setup.py "$SITE_DIR/" && echo "import ssl_setup" > "$SITE_DIR/zzz_ssl.pth"
 fi
 
 # Set up task
