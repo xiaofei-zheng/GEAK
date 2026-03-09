@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     default_cpu: int = Field(default=4, description="Default CPU cores")
     default_memory: str = Field(default="16Gi", description="Default memory")
     
+    # Entrypoint pre-command (runs before main logic in workload, e.g. trust certs)
+    entrypoint_precommand: str | None = Field(
+        default=None,
+        description="Shell commands prepended to workload entrypoint (e.g. certificate trust setup)"
+    )
+    
     # Langfuse Configuration (Optional - for LLM call tracing)
     langfuse_enabled: bool = Field(default=False, description="Enable Langfuse tracing")
     langfuse_public_key: str | None = Field(default=None, description="Langfuse public key")
