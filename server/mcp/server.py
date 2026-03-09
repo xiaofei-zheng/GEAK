@@ -144,6 +144,10 @@ def create_mcp_server(api_key: str | None = None) -> Server:
                             "type": "integer",
                             "description": "Number of GPUs for execution",
                             "default": 1
+                        },
+                        "image": {
+                            "type": "string",
+                            "description": "Custom Docker image to use for task execution. If not provided, uses the server default image."
                         }
                     },
                     "required": ["input_type"]

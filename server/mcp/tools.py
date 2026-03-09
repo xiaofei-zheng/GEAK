@@ -110,6 +110,7 @@ class GEAKTools:
         prompt: str | None = None,
         step_limit: int | None = None,
         gpu_count: int | None = None,
+        image: str | None = None,
     ) -> dict[str, Any]:
         """Create a new optimization task.
         
@@ -122,6 +123,7 @@ class GEAKTools:
             prompt: Optimization instructions.
             step_limit: Maximum agent steps.
             gpu_count: Number of GPUs.
+            image: Docker image to use. If not provided, uses server default.
         
         Returns:
             Created task information.
@@ -159,6 +161,8 @@ class GEAKTools:
         runtime: dict[str, Any] = {}
         if gpu_count is not None:
             runtime["gpu_count"] = gpu_count
+        if image is not None:
+            runtime["image"] = image
         if runtime:
             payload["runtime"] = runtime
         
