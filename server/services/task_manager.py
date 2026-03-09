@@ -336,6 +336,14 @@ pip install -e .
 # Install langfuse for LLM tracing (v2.x compatible with litellm)
 pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
 
+# Append custom CA certs to certifi bundle (httpx/openai use certifi, not system CA store)
+if [ -n "${{SSL_CERT_FILE:-}}" ] && python3 -c "import certifi" 2>/dev/null; then
+    CERTIFI_BUNDLE=$(python3 -c "import certifi; print(certifi.where())")
+    for crt in /usr/local/share/ca-certificates/*.crt; do
+        [ -f "$crt" ] && cat "$crt" >> "$CERTIFI_BUNDLE"
+    done
+fi
+
 # Set up task
 TASK_DIR="{task_dir}"
 OUTPUT_DIR="{output_dir}"
@@ -488,9 +496,9 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
         if task["user_id"] != self.user_id:
             raise PermissionError("Access denied")
         
-        # Cancel workload on SaFE if running
+        # Stop workload on SaFE if running
         if task.get("safe_workload_id") and task.get("status") == "running":
-            await self.safe_client.delete_workload(task["safe_workload_id"])
+            await self.safe_client.stop_workload(task["safe_workload_id"])
         
         return await TaskDB.update(task_id, status="cancelled")
     

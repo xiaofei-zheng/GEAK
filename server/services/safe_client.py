@@ -143,17 +143,28 @@ class SaFEClient:
             response.raise_for_status()
             return response.json()
     
-    async def delete_workload(self, workload_id: str) -> bool:
-        """Delete a workload.
+    async def stop_workload(self, workload_id: str) -> bool:
+        """Stop a running workload.
         
         Args:
             workload_id: Workload ID.
         
         Returns:
-            True if deleted successfully.
+            True if stopped successfully.
+        
+        Raises:
+            Exception: If stop request fails.
         """
-        url = f"{self.base_url}/api/v1/workloads/{workload_id}"
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        url = f"{self.base_url}/api/v1/workloads/{workload_id}/stop"
         
         async with httpx.AsyncClient() as client:
-            response = await client.delete(url, headers=self._headers(), timeout=10.0)
-            return response.status_code in (200, 204)
+            response = await client.post(url, headers=self._headers(), timeout=10.0)
+            if response.status_code not in (200, 204):
+                body = response.text
+                logger.error("Failed to stop workload %s: status=%d, body=%s", workload_id, response.status_code, body)
+                raise Exception(f"Failed to stop workload {workload_id}: {response.status_code} {body}")
+            return True
+    
