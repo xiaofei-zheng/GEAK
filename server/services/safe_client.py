@@ -110,7 +110,7 @@ class SaFEClient:
             "priority": 1, 
             "timeout": 3600,
             "maxRetry": 0,
-            "ttlSecondsAfterFinished": 300,
+            "ttlSecondsAfterFinished": 0,
         }
         
         # Add environment variables
