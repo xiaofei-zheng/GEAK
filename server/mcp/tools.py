@@ -111,6 +111,7 @@ class GEAKTools:
         step_limit: int | None = None,
         gpu_count: int | None = None,
         image: str | None = None,
+        workspace_id: str | None = None,
     ) -> dict[str, Any]:
         """Create a new optimization task.
         
@@ -124,6 +125,7 @@ class GEAKTools:
             step_limit: Maximum agent steps.
             gpu_count: Number of GPUs.
             image: Docker image to use. If not provided, uses server default.
+            workspace_id: SaFE workspace ID. If not provided, uses user's first workspace.
         
         Returns:
             Created task information.
@@ -145,6 +147,10 @@ class GEAKTools:
             }
             if repo_branch:
                 payload["repo"]["branch"] = repo_branch
+        
+        # Add optional workspace
+        if workspace_id:
+            payload["workspace_id"] = workspace_id
         
         # Add optional prompt
         if prompt:

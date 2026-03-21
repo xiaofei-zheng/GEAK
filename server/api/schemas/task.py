@@ -31,6 +31,9 @@ class TaskCreate(BaseModel):
     # User prompt - optional, defaults to system template
     prompt: str | None = Field(default=None, description="User prompt for optimization task")
     
+    # Workspace - optional, defaults to user's first workspace
+    workspace_id: str | None = Field(default=None, description="SaFE workspace ID to run in (defaults to user's first workspace)")
+    
     # Configuration - optional, merged with defaults
     config: AgentConfig | None = Field(default=None, description="Agent configuration overrides")
     

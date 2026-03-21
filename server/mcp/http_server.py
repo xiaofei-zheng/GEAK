@@ -167,7 +167,8 @@ def create_mcp_http_app() -> FastAPI:
                         "repo_branch": {"type": "string", "description": "Git branch"},
                         "prompt": {"type": "string", "description": "Optimization instructions"},
                         "step_limit": {"type": "integer", "description": "Max agent steps"},
-                        "gpu_count": {"type": "integer", "description": "Number of GPUs"}
+                        "gpu_count": {"type": "integer", "description": "Number of GPUs"},
+                        "workspace_id": {"type": "string", "description": "SaFE workspace ID (defaults to user's first workspace)"}
                     },
                     "required": ["input_type"]
                 }

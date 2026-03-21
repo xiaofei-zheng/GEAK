@@ -188,6 +188,9 @@ Provide the optimized code with comments explaining the changes made.
         user_runtime = request.runtime.model_dump(exclude_none=True) if request.runtime else None
         runtime_config = self._get_runtime_config(user_runtime)
         
+        if request.workspace_id:
+            runtime_config["workspace_id"] = request.workspace_id
+        
         # Save prompt and config to task directory
         (task_dir / "prompt.md").write_text(prompt)
         (task_dir / "config.yaml").write_text(yaml.dump(config, default_flow_style=False))
@@ -259,8 +262,8 @@ Provide the optimized code with comments explaining the changes made.
         # Build execution command based on input type
         command = self._build_execution_command(task_id, task_dir, output_dir, input_type)
         
-        # Get workspace ID
-        workspace_id = await self.safe_client.get_default_workspace_id()
+        # Get workspace ID (from task config or default to user's first workspace)
+        workspace_id = runtime.get("workspace_id") or await self.safe_client.get_default_workspace_id()
         
         # Create workload on SaFE
         workload = await self.safe_client.create_workload(
