@@ -85,6 +85,7 @@ _MODEL_CLASS_MAPPING = {
     "portkey": "minisweagent.models.portkey_model.PortkeyModel",
     "deterministic": "minisweagent.models.test_models.DeterministicModel",
     "amd_llm": "minisweagent.models.amd_llm.AmdLlmModel",
+    "openai_compatible": "minisweagent.models.openai_compatible.OpenAICompatibleModel",
 }
 
 

@@ -7,6 +7,7 @@ There are three modes:
 """
 
 import re
+import sys
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -70,6 +71,9 @@ class InteractiveAgent(DefaultAgent):
                 f"Limits exceeded. Limits: {self.config.step_limit} steps, ${self.config.cost_limit}.\n"
                 f"Current spend: {self.model.n_calls} steps, ${self.model.cost:.2f}."
             )
+            # In yolo mode or non-interactive mode, re-raise the exception instead of asking for input
+            if self.config.mode == "yolo" or not sys.stdin.isatty():
+                raise
             self.config.step_limit = int(input("New step limit: "))
             self.config.cost_limit = float(input("New cost limit: "))
             return super().query()
