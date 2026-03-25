@@ -77,9 +77,9 @@ def cmd_config(args):
     payload = {
         "model_class": args.model_class,
         "model_name": args.model_name,
+        "api_key": args.api_key,
         "model_kwargs": {
             "api_base": args.api_base,
-            "api_key": args.api_key,
             "temperature": 0.0,
             "max_tokens": 16000,
         },

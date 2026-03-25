@@ -133,6 +133,13 @@ Provide the optimized code with comments explaining the changes made.
         if user_config:
             config = merge(config, user_config)
         
+        # Normalize: move api_key from model_kwargs to model top level
+        # GEAK's AmdLlmModelConfig expects api_key at model level, not inside model_kwargs
+        model_cfg = config.get("model", {})
+        model_kwargs = model_cfg.get("model_kwargs", {})
+        if "api_key" in model_kwargs and "api_key" not in model_cfg:
+            model_cfg["api_key"] = model_kwargs.pop("api_key")
+        
         return config
     
     def _get_runtime_config(self, user_runtime: dict | None) -> dict:
@@ -331,13 +338,16 @@ set -e
 # Clone GEAK repository
 cd /tmp
 git clone -b {settings.geak_branch} {settings.geak_repo_url} geak
-cd geak/geak_v3
+cd geak
 
 # Install dependencies
 pip install -e .
 
 # Install langfuse for LLM tracing (v2.x compatible with litellm)
 pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
+
+git clone https://github.com/AMDResearch/intellikit.git
+pip install -e  intellikit/metrix/
 
 # Trust custom CA certs for Python SSL (certifi + partial chain via .pth auto-import)
 if ls /usr/local/share/ca-certificates/*.crt &>/dev/null; then
@@ -351,7 +361,7 @@ OUTPUT_DIR="{output_dir}"
 """
         
         if input_type == "repo":
-            # For repo input, run mini from the repo directory
+            # For repo input, run geak from the repo directory
             run_commands = f"""
 # Change to repo directory for execution
 cd "$TASK_DIR/input/repo"
@@ -359,27 +369,20 @@ cd "$TASK_DIR/input/repo"
 # Set REPO_DIR environment variable for use in prompts
 export REPO_DIR="$TASK_DIR/input/repo"
 
-# Copy test scripts from GEAK to repo directory (for use in prompts)
-cp -r /tmp/geak/geak_v3/test_scripts/* . 2>/dev/null || true
-
 # Run optimization from repo directory
-mini -c "$TASK_DIR/config.yaml" -t "$TASK_DIR/prompt.md" --kernel-url "$TASK_DIR/input/repo" --enable-strategies --heterogeneous --max-rounds 3 --yolo > "$OUTPUT_DIR/execution.log" 2>&1
+geak -c "$TASK_DIR/config.yaml" -t "$TASK_DIR/prompt.md" -o "$OUTPUT_DIR/" --enable-strategies --heterogeneous --max-rounds 3 --yolo > "$OUTPUT_DIR/execution.log" 2>&1
 
 # Archive the modified repo
 cd "$TASK_DIR/input"
 tar -czf "$OUTPUT_DIR/modified_repo.tar.gz" repo/
 
-# Copy any optimized hip files to output
-find repo -name "*.hip" -newer "$TASK_DIR/config.yaml" -exec cp {{}} "$OUTPUT_DIR/" \\; 2>/dev/null || true
 """
         else:
-            # For file input, run mini from geak_v3 directory
+            # For file input, run geak
             run_commands = f"""
 # Run optimization
-mini -c "$TASK_DIR/config.yaml" -t "$TASK_DIR/prompt.md" --kernel-url "$TASK_DIR/input" --enable-strategies --heterogeneous --max-rounds 3 --yolo > "$OUTPUT_DIR/execution.log" 2>&1
+geak -c "$TASK_DIR/config.yaml" -t "$TASK_DIR/prompt.md" -o "$OUTPUT_DIR/" --enable-strategies --heterogeneous --max-rounds 3 --yolo > "$OUTPUT_DIR/execution.log" 2>&1
 
-# Copy optimized files to output
-find "$TASK_DIR/input" -name "*.hip" -exec cp {{}} "$OUTPUT_DIR/" \\;
 """
         
         finish_commands = f"""
