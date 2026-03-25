@@ -73,13 +73,19 @@ class BashCommand:
         else:
             env = os.environ | self._env_override if self._env_override else None
             cwd = self._cwd if self._cwd and os.path.isdir(self._cwd) else None
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, env=env, cwd=cwd)
-            output_text = result.stdout.strip() or result.stderr.strip()
-
+            result = subprocess.run(command, shell=True, capture_output=True, text=False, env=env, cwd=cwd)
+            stdout_text = result.stdout.decode("utf-8", errors="replace")
+            stderr_text = result.stderr.decode("utf-8", errors="replace")
+ 
+            output_text = stdout_text.strip() or stderr_text.strip()
+ 
+            if not output_text:
+                output_text = "<no output>"
+ 
             # Auto-validate COMMANDMENT.md if the command wrote one
             if "COMMANDMENT.md" in command:
                 output_text = self._maybe_validate_commandment(command, output_text)
-
+ 
             return {
                 "output": output_text,
                 "returncode": result.returncode,
