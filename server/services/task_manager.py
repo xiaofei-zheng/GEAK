@@ -358,14 +358,12 @@ fi
 # Set up task
 TASK_DIR="{task_dir}"
 OUTPUT_DIR="{output_dir}"
+cd "$OUTPUT_DIR"
 """
         
         if input_type == "repo":
             # For repo input, run geak from the repo directory
             run_commands = f"""
-# Change to repo directory for execution
-cd "$TASK_DIR/input/repo"
-
 # Set REPO_DIR environment variable for use in prompts
 export REPO_DIR="$TASK_DIR/input/repo"
 
