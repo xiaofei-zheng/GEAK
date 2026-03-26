@@ -349,12 +349,6 @@ pip install 'langfuse>=2.0.0,<3.0.0' -q 2>/dev/null || true
 git clone https://github.com/AMDResearch/intellikit.git
 pip install -e  intellikit/metrix/
 
-# Trust custom CA certs for Python SSL (certifi + partial chain via .pth auto-import)
-if ls /usr/local/share/ca-certificates/*.crt &>/dev/null; then
-    SITE_DIR=$(python3 -c "import site;print(site.getsitepackages()[0])")
-    cp /tmp/geak/server/ssl_setup.py "$SITE_DIR/" && echo "import ssl_setup" > "$SITE_DIR/zzz_ssl.pth"
-fi
-
 # Set up task
 TASK_DIR="{task_dir}"
 OUTPUT_DIR="{output_dir}"
