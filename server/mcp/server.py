@@ -115,39 +115,45 @@ def create_mcp_server(api_key: str | None = None) -> Server:
                             "enum": ["file", "repo"],
                             "description": "Input type: 'file' for single file, 'repo' for git repository"
                         },
-                        "filename": {
-                            "type": "string",
-                            "description": "Filename for file input (e.g., silu.hip)"
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "File content for file input"
+                        "files": {
+                            "type": "array",
+                            "description": "List of files for file input (can include .hip, Makefile, headers, etc.)",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "filename": {"type": "string", "description": "File name, e.g., silu.hip or Makefile"},
+                                    "content": {"type": "string", "description": "File content"}
+                                },
+                                "required": ["filename", "content"]
+                            }
                         },
                         "repo_url": {
                             "type": "string",
-                            "description": "Git repository URL for repo input"
+                            "description": "Git repository URL"
                         },
                         "repo_branch": {
                             "type": "string",
-                            "description": "Git branch for repo input"
+                            "description": "Git branch"
                         },
                         "prompt": {
                             "type": "string",
-                            "description": "Optimization prompt/instructions"
+                            "description": "Optimization instructions"
                         },
                         "step_limit": {
                             "type": "integer",
-                            "description": "Maximum number of agent steps",
-                            "default": 10
+                            "description": "Max agent steps"
                         },
                         "gpu_count": {
                             "type": "integer",
-                            "description": "Number of GPUs for execution",
-                            "default": 1
+                            "description": "Number of GPUs"
                         },
                         "image": {
                             "type": "string",
                             "description": "Custom Docker image to use for task execution. If not provided, uses the server default image."
+                        },
+                        "workspace_id": {
+                            "type": "string",
+                            "description": "SaFE workspace ID (defaults to user's first workspace)"
                         }
                     },
                     "required": ["input_type"]

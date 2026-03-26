@@ -168,6 +168,7 @@ def create_mcp_http_app() -> FastAPI:
                         "prompt": {"type": "string", "description": "Optimization instructions"},
                         "step_limit": {"type": "integer", "description": "Max agent steps"},
                         "gpu_count": {"type": "integer", "description": "Number of GPUs"},
+                        "image": {"type": "string", "description": "Custom Docker image to use for task execution. If not provided, uses the server default image."},
                         "workspace_id": {"type": "string", "description": "SaFE workspace ID (defaults to user's first workspace)"}
                     },
                     "required": ["input_type"]
