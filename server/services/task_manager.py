@@ -140,14 +140,19 @@ Provide the optimized code with comments explaining the changes made.
         if user_config:
             config = merge(config, user_config)
         
-        # Normalize: ensure api_key exists at both model top level and model_kwargs
-        # amd_llm expects api_key at model level; litellm expects it inside model_kwargs
+        # Normalize api_key placement based on model_class:
+        # - amd_llm: expects api_key at model top level (AmdLlmModelConfig.api_key)
+        # - litellm: expects api_key inside model_kwargs only (LitellmModelConfig rejects unknown fields)
         model_cfg = config.get("model", {})
         model_kwargs = model_cfg.get("model_kwargs", {})
-        if "api_key" in model_kwargs and "api_key" not in model_cfg:
-            model_cfg["api_key"] = model_kwargs["api_key"]
-        elif "api_key" in model_cfg and "api_key" not in model_kwargs:
-            model_kwargs["api_key"] = model_cfg["api_key"]
+        model_class = model_cfg.get("model_class", "")
+        if model_class == "amd_llm":
+            if "api_key" in model_kwargs and "api_key" not in model_cfg:
+                model_cfg["api_key"] = model_kwargs["api_key"]
+        else:
+            if "api_key" in model_cfg:
+                model_kwargs.setdefault("api_key", model_cfg.pop("api_key"))
+                model_cfg["model_kwargs"] = model_kwargs
         
         return config
     
