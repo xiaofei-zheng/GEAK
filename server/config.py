@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     )
     
     # SaFE Platform
-    safe_api_base: str = Field(..., description="SaFE platform API base URL")
+    safe_api_base: str | None = Field(default=None, description="SaFE platform API base URL (not needed in local mode)")
     safe_system_api_key: str | None = Field(
         default=None,
         description="System-level SaFE API key for background task status checks"

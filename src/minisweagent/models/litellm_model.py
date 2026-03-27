@@ -31,7 +31,9 @@ class LitellmModelConfig:
 
 class LitellmModel:
     def __init__(self, *, config_class: type = LitellmModelConfig, **kwargs):
-        self.config = config_class(**kwargs)
+        from dataclasses import fields as dc_fields
+        valid = {f.name for f in dc_fields(config_class)}
+        self.config = config_class(**{k: v for k, v in kwargs.items() if k in valid})
         self.cost = 0.0
         self.n_calls = 0
         register_litellm_models(self.config.litellm_model_registry)
