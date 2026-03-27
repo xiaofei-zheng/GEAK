@@ -1,6 +1,8 @@
 """Task management service for GEAK Online Service."""
 
+import asyncio
 import os
+import signal
 import uuid
 import yaml
 import shutil
@@ -21,7 +23,12 @@ class TaskManager:
         self.user_id = user_id
         self.api_key = api_key
         self.settings = get_settings()
-        self.safe_client = SaFEClient(api_key)
+        self.local_mode = os.getenv("GEAK_LOCAL", "false").lower() == "true"
+        self._running_tasks: dict[str, int] = {}
+        if not self.local_mode:
+            self.safe_client = SaFEClient(api_key)
+        else:
+            self.safe_client = None
     
     def _get_task_dir(self, task_id: str) -> Path:
         """Get task directory path."""
@@ -133,12 +140,14 @@ Provide the optimized code with comments explaining the changes made.
         if user_config:
             config = merge(config, user_config)
         
-        # Normalize: move api_key from model_kwargs to model top level
-        # GEAK's AmdLlmModelConfig expects api_key at model level, not inside model_kwargs
+        # Normalize: ensure api_key exists at both model top level and model_kwargs
+        # amd_llm expects api_key at model level; litellm expects it inside model_kwargs
         model_cfg = config.get("model", {})
         model_kwargs = model_cfg.get("model_kwargs", {})
         if "api_key" in model_kwargs and "api_key" not in model_cfg:
-            model_cfg["api_key"] = model_kwargs.pop("api_key")
+            model_cfg["api_key"] = model_kwargs["api_key"]
+        elif "api_key" in model_cfg and "api_key" not in model_kwargs:
+            model_kwargs["api_key"] = model_cfg["api_key"]
         
         return config
     
@@ -247,7 +256,7 @@ Provide the optimized code with comments explaining the changes made.
         return str(repo_dir)
     
     async def submit_task(self, task_id: str) -> dict:
-        """Submit task to SaFE platform for execution.
+        """Submit task for execution (locally or via SaFE platform).
         
         Args:
             task_id: Task ID.
@@ -255,6 +264,12 @@ Provide the optimized code with comments explaining the changes made.
         Returns:
             Updated task with workload info.
         """
+        if self.local_mode:
+            return await self._submit_local(task_id)
+        return await self._submit_remote(task_id)
+    
+    async def _submit_remote(self, task_id: str) -> dict:
+        """Submit task to SaFE platform for execution."""
         task = await TaskDB.get(task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
@@ -304,6 +319,69 @@ Provide the optimized code with comments explaining the changes made.
         )
         
         return task
+    
+    async def _submit_local(self, task_id: str) -> dict:
+        """Run GEAK agent locally via subprocess."""
+        task = await TaskDB.get(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+        if task["user_id"] != self.user_id:
+            raise PermissionError("Access denied")
+        
+        task_dir = self._get_task_dir(task_id)
+        output_dir = self._get_output_dir(task_id)
+        log_path = output_dir / "execution.log"
+        
+        cmd = [
+            "geak",
+            "-c", str(task_dir / "config.yaml"),
+            "-t", str(task_dir / "prompt.md"),
+            "-o", str(output_dir) + "/",
+            "--enable-strategies",
+            "--heterogeneous",
+            "--max-rounds", "3",
+            "--yolo",
+        ]
+        
+        env = os.environ.copy()
+        env.update(self._build_env_vars(task_id))
+        
+        log_f = open(log_path, "w")
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=log_f,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(output_dir),
+            env=env,
+        )
+        
+        self._running_tasks[task_id] = proc.pid
+        task = await TaskDB.update(
+            task_id,
+            status="running",
+            output_path=str(output_dir),
+        )
+        
+        asyncio.create_task(self._wait_local_task(task_id, proc, log_f))
+        return task
+    
+    async def _wait_local_task(self, task_id: str, proc, log_file):
+        """Wait for local subprocess to complete and update status."""
+        try:
+            returncode = await proc.wait()
+            status = "completed" if returncode == 0 else "failed"
+            error_msg = None
+            if returncode != 0:
+                error_msg = f"Process exited with code {returncode}"
+            await TaskDB.update(task_id, status=status, error_message=error_msg)
+        except Exception as e:
+            await TaskDB.update(task_id, status="failed", error_message=str(e))
+        finally:
+            self._running_tasks.pop(task_id, None)
+            try:
+                log_file.close()
+            except Exception:
+                pass
     
     def _build_execution_command(self, task_id: str, task_dir: Path, output_dir: Path, input_type: str = "file") -> str:
         """Build the execution command for the workload.
@@ -406,6 +484,11 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
         if task.get("status") != "running":
             return task
         
+        if self.local_mode:
+            if task["id"] not in self._running_tasks:
+                return await self._check_log_for_completion(task)
+            return task
+        
         workload_id = task.get("safe_workload_id")
         if not workload_id:
             return task
@@ -492,8 +575,18 @@ echo "Task {task_id} completed successfully" >> "$OUTPUT_DIR/execution.log"
         if task["user_id"] != self.user_id:
             raise PermissionError("Access denied")
         
-        # Stop workload on SaFE if running
-        if task.get("safe_workload_id") and task.get("status") == "running":
+        # Local mode: kill the subprocess
+        if self.local_mode and task.get("status") == "running":
+            pid = self._running_tasks.get(task_id)
+            if pid:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                self._running_tasks.pop(task_id, None)
+        
+        # Remote mode: stop workload on SaFE if running
+        if not self.local_mode and task.get("safe_workload_id") and task.get("status") == "running":
             await self.safe_client.stop_workload(task["safe_workload_id"])
         
         return await TaskDB.update(task_id, status="cancelled")
