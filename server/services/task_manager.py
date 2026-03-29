@@ -337,8 +337,9 @@ Provide the optimized code with comments explaining the changes made.
         output_dir = self._get_output_dir(task_id)
         log_path = output_dir / "execution.log"
         
+        geak_bin = shutil.which("geak") or shutil.which("geak-gaagent") or "geak"
         cmd = [
-            "geak",
+            geak_bin,
             "-c", str(task_dir / "config.yaml"),
             "-t", str(task_dir / "prompt.md"),
             "-o", str(output_dir) + "/",
@@ -352,21 +353,41 @@ Provide the optimized code with comments explaining the changes made.
         env.update(self._build_env_vars(task_id))
         
         log_f = open(log_path, "w")
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=log_f,
-            stderr=asyncio.subprocess.STDOUT,
-            cwd=str(output_dir),
-            env=env,
-        )
-        
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=log_f,
+                stderr=asyncio.subprocess.STDOUT,
+                cwd=str(output_dir),
+                env=env,
+            )
+        except FileNotFoundError:
+            # geak CLI not found — mark as failed immediately
+            log_f.write("ERROR: 'geak' command not found. Please install the GEAK agent.\n")
+            log_f.close()
+            return await TaskDB.update(
+                task_id,
+                status="failed",
+                error_message="geak CLI not found in PATH",
+                output_path=str(output_dir),
+            )
+        except Exception as e:
+            log_f.write(f"ERROR: Failed to start subprocess: {e}\n")
+            log_f.close()
+            return await TaskDB.update(
+                task_id,
+                status="failed",
+                error_message=str(e),
+                output_path=str(output_dir),
+            )
+
         self._running_tasks[task_id] = proc.pid
         task = await TaskDB.update(
             task_id,
             status="running",
             output_path=str(output_dir),
         )
-        
+
         asyncio.create_task(self._wait_local_task(task_id, proc, log_f))
         return task
     

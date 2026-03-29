@@ -17,16 +17,30 @@ class AuthService:
     
     async def get_user_info(self) -> dict[str, Any]:
         """Get user info from SaFE platform using the API key.
-        
+
+        In local mode (GEAK_LOCAL=true), skips SaFE and returns a synthetic
+        local user derived from the API key.
+
         Returns:
             User info dictionary containing at least 'id', 'name', 'email'.
-        
+
         Raises:
             HTTPException: If authentication fails.
         """
+        import os
         if self._user_info:
             return self._user_info
-        
+
+        # Local mode: skip SaFE auth, return synthetic user
+        if os.getenv("GEAK_LOCAL", "false").lower() == "true":
+            self._user_info = {
+                "id": f"local-{self.api_key[:8]}",
+                "userId": f"local-{self.api_key[:8]}",
+                "name": "local-user",
+                "email": "local@localhost",
+            }
+            return self._user_info
+
         url = f"{self.settings.safe_api_base}/api/v1/users/self"
         headers = {
             "Authorization": f"Bearer {self.api_key}",

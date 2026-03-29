@@ -8,6 +8,7 @@ Supports both Streamable HTTP and SSE transport for Cursor compatibility.
 import asyncio
 import json
 import logging
+import os
 import uuid
 from typing import Any
 
@@ -22,6 +23,20 @@ from server.config import get_settings
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _is_geak_local() -> bool:
+    """True when running in local-all-in-one mode (no SaFE user API key required for MCP)."""
+    return os.getenv("GEAK_LOCAL", "false").lower() in ("true", "1", "yes")
+
+
+def _local_mcp_effective_api_key(header_api_key: str | None) -> str | None:
+    """Return API key for downstream REST calls; in local mode, substitute a placeholder if missing."""
+    if header_api_key:
+        return header_api_key
+    if _is_geak_local():
+        return os.getenv("GEAK_MCP_LOCAL_API_KEY", "local-mcp")
+    return None
 
 
 class MCPRequest(BaseModel):
@@ -474,7 +489,8 @@ def create_mcp_http_app() -> FastAPI:
                 )
             
             elif request.method == "tools/call":
-                if not api_key:
+                effective_key = _local_mcp_effective_api_key(api_key)
+                if not effective_key:
                     return make_mcp_response(
                         id=request.id,
                         error={
@@ -498,7 +514,7 @@ def create_mcp_http_app() -> FastAPI:
                 
                 # Call the tool
                 handler = TOOLS[tool_name]["handler"]
-                result = await handler(api_key, **arguments)
+                result = await handler(effective_key, **arguments)
                 
                 return make_mcp_response(
                     id=request.id,
@@ -572,6 +588,7 @@ def create_mcp_http_app() -> FastAPI:
         elif x_api_key:
             api_key = x_api_key
         
+        api_key = _local_mcp_effective_api_key(api_key)
         if not api_key:
             raise HTTPException(status_code=401, detail="API key required")
         
@@ -601,9 +618,12 @@ if __name__ == "__main__":
     import uvicorn
     
     settings = get_settings()
+    # MCP_PORT: dedicated env var for MCP server binding port (default 8001)
+    # Keeps PORT env var free for GEAKTools to reference the REST API
+    mcp_port = int(os.environ.get("MCP_PORT", 8001))
     uvicorn.run(
         "server.mcp.http_server:mcp_app",
         host=settings.host,
-        port=8001,  # Use different port from main API
-        reload=True,
+        port=mcp_port,
+        reload=False,
     )
